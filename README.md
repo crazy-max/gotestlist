@@ -10,7 +10,7 @@ List tests in the given Go packages.
 ## Installation
 
 ```console
-$ go install github.com/crazy-max/gotestlist@latest
+$ go install github.com/crazy-max/gotestlist/cmd/gotestlist@latest
 ```
 
 ## Usage
