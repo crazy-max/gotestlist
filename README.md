@@ -71,6 +71,16 @@ Pkg:     gotestlist     |     TestName:     TestTests     |     File:     /home/
 Pkg:     main           |     TestName:     TestDirs      |     File:     /home/crazy/src/github.com/crazy-max/gotestlist/cmd/gotestlist/gotestlist_test.go
 ```
 
+```console
+$ gotestlist -d 1 ./...
+["TestDirs|TestTests"]
+```
+
+```console
+$ gotestlist -d 2 ./...
+["TestDirs","TestTests"]
+```
+
 ## Contributing
 
 Want to contribute? Awesome! The most basic way to show your support is to star the project, or to raise issues. You
