@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"go/build"
 	"io"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"text/template"
@@ -18,31 +20,21 @@ import (
 	gitignore "github.com/sabhiram/go-gitignore"
 )
 
-const usage = `%s [-f=<format>] <packages>
-
-Options:
-
-	-f:
-		it can be "json" or any other layout where
-
-			{{.Name}} = test name
-			{{.Benchmark}} = is benchmark
-			{{.Fuzz}} = is fuzz
-			{{.Suite}} = suite name
-			{{.Pkg}}  = package
-			{{.File}} = file path
-
-		Default("%s")
-
+const usage = `usage: %s [-f=<format>] [-d=<size>] <packages>
 
 gotestlist is looking for tests in the given list of packages.
 It can also look for them recursively starting in the current directory by using: gotestlist ./...
+
+Flags:
+	-f: output format ; can be "json" or Go template layout (default "%s")
+	-d: distribute tests based on the given matrix size ; output for each entry can be used with "go test -run (<matrix_entry>)/"
 `
 
 const defaultFormat = "{{.Pkg}}\t{{.Name}}\t{{.File}}"
 const iterationTemplate = "{{range .}}%s\n{{end}}"
 
 var format = flag.String("f", defaultFormat, "")
+var distribute = flag.Int("d", 0, "")
 
 type set map[string]struct{}
 
@@ -171,35 +163,111 @@ func main() {
 		return
 	}
 
-	w, f, fn := output(*format)
-
-	t, err := getTemplate(f)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
 	dirs, err := testDirs(flag.Args())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-
 	ts, err := tests(dirs)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	if err = printTests(w, ts, f, t); err != nil {
+	if *distribute > 0 {
+		if err := runDistribute(ts, *distribute); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if err := runPrint(ts, *format); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+}
+
+func runPrint(ts gotestlist.TestSlice, format string) error {
+	w, f, fn := output(format)
+
+	t, err := getTemplate(f)
+	if err != nil {
+		return err
+	}
+
+	if err = printTests(w, ts, f, t); err != nil {
+		return err
 	}
 
 	if fn != nil {
 		if err := fn(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return err
 		}
 	}
+
+	return nil
+}
+
+func runDistribute(ts gotestlist.TestSlice, size int) error {
+	suites := make(map[string]int)
+	for _, t := range ts {
+		name := t.Suite
+		if name == "" {
+			if !strings.HasSuffix(t.Name, "Suite") {
+				name = t.Name
+			} else {
+				continue
+			}
+		}
+		if _, ok := suites[name]; !ok {
+			suites[name] = 0
+		}
+		suites[name]++
+	}
+
+	skeys := make([]string, 0, len(suites))
+	for k := range suites {
+		skeys = append(skeys, k)
+	}
+	sort.Strings(skeys)
+
+	type matrixEntry struct {
+		Suites []string
+		Size   int
+	}
+
+	matrixEntries := make(map[int]*matrixEntry)
+	msize := int(math.Ceil(float64(ts.Len()) / float64(size)))
+	pos := 1
+	for _, skey := range skeys {
+		suiteName := skey
+		suiteSize := suites[skey]
+		if _, ok := matrixEntries[pos]; !ok {
+			matrixEntries[pos] = &matrixEntry{}
+		}
+		if pos < size && matrixEntries[pos].Size > 0 && matrixEntries[pos].Size+suiteSize > msize {
+			pos++
+			if _, ok := matrixEntries[pos]; !ok {
+				matrixEntries[pos] = &matrixEntry{}
+			}
+		}
+		matrixEntries[pos].Size += suiteSize
+		matrixEntries[pos].Suites = append(matrixEntries[pos].Suites, suiteName)
+	}
+	mkeys := make([]int, 0, len(matrixEntries))
+	for k := range matrixEntries {
+		mkeys = append(mkeys, k)
+	}
+	sort.Ints(mkeys)
+
+	var matrix []string
+	for _, mkey := range mkeys {
+		matrix = append(matrix, strings.Join(matrixEntries[mkey].Suites, "|"))
+	}
+
+	b, _ := json.Marshal(matrix)
+	fmt.Println(string(b))
+
+	return nil
 }
