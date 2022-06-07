@@ -81,6 +81,76 @@ $ gotestlist -d 2 ./...
 ["TestDirs","TestTests"]
 ```
 
+### Distribute tests with GitHub Actions
+
+`-d `flag dynamically distributes the tests based on the given matrix size and
+number of tests found. This JSON output can then be used as [matrix input](https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs)
+in a GitHub Action workflow:
+
+```yaml
+name: test
+
+on:
+  push:
+
+env:
+  GO_VERSION: 1.18
+
+jobs:
+  test-prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.tests.outputs.matrix }}
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v3
+      -
+        name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      -
+        name: Install gotestlist
+        run:
+          go install github.com/crazy-max/gotestlist/cmd/gotestlist@latest
+      -
+        name: Create matrix
+        id: tests
+        run: |
+          matrix="$(gotestlist -d 4 ./...)"
+          echo "::set-output name=matrix::$matrix"
+  
+  test:
+    runs-on: ubuntu-latest
+    needs:
+      - test-prepare
+    strategy:
+      fail-fast: false
+      test: ${{ fromJson(needs.test-prepare.outputs.matrix) }}
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v3
+      -
+        name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      -
+        name: Test
+        run: |
+          go test -run=(${{ matrix.test }})/ -coverprofile=coverage.txt -covermode=atomic ./...
+      -
+        name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.txt
+```
+
+This is useful if you have a lot of tests and you want to distribute them to
+reduce build time.
+
 ## Contributing
 
 Want to contribute? Awesome! The most basic way to show your support is to star the project, or to raise issues. You
