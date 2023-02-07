@@ -1,5 +1,5 @@
 [![PkgGoDev](https://img.shields.io/badge/go.dev-docs-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/crazy-max/gotestlist)
-[![Test workflow](https://img.shields.io/github/workflow/status/crazy-max/gotestlist/test?label=test&logo=github&style=flat-square)](https://github.com/crazy-max/gotestlist/actions?workflow=test)
+[![Test workflow](https://img.shields.io/github/actions/workflow/status/crazy-max/gotestlist/test.yml?label=test&logo=github&style=flat-square)](https://github.com/crazy-max/gotestlist/actions?workflow=test)
 [![Go Report](https://goreportcard.com/badge/github.com/crazy-max/gotestlist?style=flat-square)](https://goreportcard.com/report/github.com/crazy-max/gotestlist)
 [![Codecov](https://img.shields.io/codecov/c/github/crazy-max/gotestlist?logo=codecov&style=flat-square)](https://codecov.io/gh/crazy-max/gotestlist)
 
