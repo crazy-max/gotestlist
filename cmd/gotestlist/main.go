@@ -3,10 +3,10 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"go/build"
 	"io"
+	"log"
 	"math"
 	"os"
 	"path"
@@ -16,33 +16,64 @@ import (
 	"text/tabwriter"
 	"text/template"
 
+	"github.com/alecthomas/kong"
 	"github.com/crazy-max/gotestlist"
 	gitignore "github.com/sabhiram/go-gitignore"
 )
 
-const usage = `usage: %s [-f=<format>] [-d=<size>] <packages>
+type cli struct {
+	Format     string   `kong:"name='format',short='f',default='{{.Pkg}}	{{.Name}}	{{.File}}',help='Output format. Can be \"json\" or Go template layout.'"`
+	Distribute int      `kong:"name='distribute',short='d',default='0',help='Distribute tests based on the given matrix size. Output for each entry can be used with \"go test -run (<matrix_entry>)/\".'"`
+	Overrides  []string `kong:"name='overrides',short='o',help='Tests or tests suites to override when distributed.'"`
 
-gotestlist is looking for tests in the given list of packages.
-It can also look for them recursively starting in the current directory by using: gotestlist ./...
+	Pkgs []string `kong:"arg='',name='pkgs',help='List of packages.'"`
+}
 
-Flags:
-	-f: output format ; can be "json" or Go template layout (default "%s")
-	-d: distribute tests based on the given matrix size ; output for each entry can be used with "go test -run (<matrix_entry>)/"
-`
-
-const defaultFormat = "{{.Pkg}}\t{{.Name}}\t{{.File}}"
 const iterationTemplate = "{{range .}}%s\n{{end}}"
 
-var format = flag.String("f", defaultFormat, "")
-var distribute = flag.Int("d", 0, "")
+var (
+	flags cli
+	name  = "gotestlist"
+	desc  = "gotestlist is looking for tests in the given list of packages"
+	url   = "https://github.com/crazy-max/gotestlist"
+)
 
-type set map[string]struct{}
+func main() {
+	var err error
 
-func init() {
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, usage, os.Args[0], defaultFormat)
+	kong.Parse(&flags,
+		kong.Name(name),
+		kong.Description(fmt.Sprintf("%s. More info: %s", desc, url)),
+		kong.UsageOnError(),
+		kong.ConfigureHelp(kong.HelpOptions{
+			Compact: true,
+			Summary: true,
+		}))
+
+	log.SetFlags(0)
+
+	dirs, err := testDirs(flags.Pkgs)
+	if err != nil {
+		log.Fatal(err)
+	}
+	ts, err := tests(dirs)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if flags.Distribute > 0 {
+		if err := runDistribute(ts, flags.Distribute, flags.Overrides); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
+	if err := runPrint(ts, flags.Format); err != nil {
+		log.Fatal(err)
 	}
 }
+
+type set map[string]struct{}
 
 func walkfunc(root string, dirs set) error {
 	var gi *gitignore.GitIgnore
@@ -134,9 +165,6 @@ func output(format string) (io.Writer, string, func() error) {
 }
 
 func getTemplate(format string) (*template.Template, error) {
-	if format == "" {
-		format = defaultFormat
-	}
 	return template.New("TestTemplate").Parse(fmt.Sprintf(iterationTemplate, format))
 }
 
@@ -154,38 +182,6 @@ func printTests(w io.Writer, ts gotestlist.TestSlice, format string, t *template
 		return t.Execute(w, ts)
 	}
 	return nil
-}
-
-func main() {
-	flag.Parse()
-	if flag.NArg() == 0 {
-		flag.Usage()
-		return
-	}
-
-	dirs, err := testDirs(flag.Args())
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	ts, err := tests(dirs)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	if *distribute > 0 {
-		if err := runDistribute(ts, *distribute); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
-	}
-
-	if err := runPrint(ts, *format); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
 }
 
 func runPrint(ts gotestlist.TestSlice, format string) error {
@@ -209,7 +205,7 @@ func runPrint(ts gotestlist.TestSlice, format string) error {
 	return nil
 }
 
-func runDistribute(ts gotestlist.TestSlice, size int) error {
+func runDistribute(ts gotestlist.TestSlice, size int, overrides []string) error {
 	suites := make(map[string]int)
 	for _, t := range ts {
 		name := t.Suite
@@ -219,6 +215,16 @@ func runDistribute(ts gotestlist.TestSlice, size int) error {
 			} else {
 				continue
 			}
+		}
+		if func(overrides []string) bool {
+			for _, o := range overrides {
+				if o == name {
+					return true
+				}
+			}
+			return false
+		}(overrides) {
+			continue
 		}
 		if _, ok := suites[name]; !ok {
 			suites[name] = 0
@@ -264,6 +270,9 @@ func runDistribute(ts gotestlist.TestSlice, size int) error {
 	var matrix []string
 	for _, mkey := range mkeys {
 		matrix = append(matrix, strings.Join(matrixEntries[mkey].Suites, "|"))
+	}
+	for _, o := range overrides {
+		matrix = append(matrix, o)
 	}
 
 	b, _ := json.Marshal(matrix)
