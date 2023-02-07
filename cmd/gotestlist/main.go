@@ -218,8 +218,10 @@ func runDistribute(ts gotestlist.TestSlice, size int, overrides []string) error 
 		}
 		if func(overrides []string) bool {
 			for _, o := range overrides {
-				if o == name {
-					return true
+				for _, oo := range strings.Split(o, "|") {
+					if oo == name {
+						return true
+					}
 				}
 			}
 			return false
