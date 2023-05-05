@@ -94,7 +94,7 @@ on:
   push:
 
 env:
-  GO_VERSION: 1.18
+  GO_VERSION: 1.20
 
 jobs:
   test-prepare:
@@ -107,7 +107,7 @@ jobs:
         uses: actions/checkout@v3
       -
         name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
       -
@@ -119,7 +119,7 @@ jobs:
         id: tests
         run: |
           matrix="$(gotestlist -d 4 ./...)"
-          echo "::set-output name=matrix::$matrix"
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
   
   test:
     runs-on: ubuntu-latest
@@ -134,7 +134,7 @@ jobs:
         uses: actions/checkout@v3
       -
         name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
       -
@@ -148,7 +148,7 @@ jobs:
           file: ./coverage.txt
 ```
 
-This is useful if you have a lot of tests and you want to distribute them to
+This is useful if you have a lot of tests, and you want to distribute them to
 reduce build time.
 
 ## Contributing
