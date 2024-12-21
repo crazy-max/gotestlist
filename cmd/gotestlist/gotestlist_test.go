@@ -33,71 +33,83 @@ func TestDirs(t *testing.T) {
 	}
 	defer os.Chdir(wd)
 	splitList := strings.SplitAfter(pkg.Dir, string(filepath.Separator))
-	fixture := []struct {
-		Args []string
-		Dirs sort.StringSlice
+	cases := []struct {
+		name string
+		args []string
+		dirs sort.StringSlice
 	}{
 		{
-			Args: []string{"."},
-			Dirs: sort.StringSlice{pkg.Dir},
+			name: "working dir",
+			args: []string{"."},
+			dirs: sort.StringSlice{pkg.Dir},
 		},
 		{
-			Args: []string{"./..."},
-			Dirs: sort.StringSlice{pkg.Dir},
+			name: "all dirs",
+			args: []string{"./..."},
+			dirs: sort.StringSlice{pkg.Dir},
 		},
 		{
-			Args: []string{"../gotestlist/"},
-			Dirs: sort.StringSlice{pkg.Dir},
+			name: "relative dir",
+			args: []string{"../gotestlist/"},
+			dirs: sort.StringSlice{pkg.Dir},
 		},
 		{
-			Args: []string{"../../..."},
-			Dirs: sort.StringSlice{
+			name: "relative all dirs",
+			args: []string{"../../..."},
+			dirs: sort.StringSlice{
 				pkg.Dir,
 				filepath.Join(splitList[:len(splitList)-1]...),
 				filepath.Join(splitList[:len(splitList)-2]...),
 			},
 		},
 		{
-			Args: []string{".", "../../"},
-			Dirs: sort.StringSlice{
+			name: "working dir and relative dir",
+			args: []string{".", "../../"},
+			dirs: sort.StringSlice{
 				pkg.Dir,
 				filepath.Join(splitList[:len(splitList)-2]...),
 			},
 		},
 		{
-			Args: []string{pkgImport},
-			Dirs: sort.StringSlice{
+			name: "pkg import",
+			args: []string{pkgImport},
+			dirs: sort.StringSlice{
 				pkg.Dir,
 			},
 		},
 		{
-			Args: []string{pkgRoot},
-			Dirs: sort.StringSlice{
+			name: "pkg root",
+			args: []string{pkgRoot},
+			dirs: sort.StringSlice{
 				filepath.Join(splitList[:len(splitList)-2]...),
 			},
 		},
 		{
-			Args: []string{pkgRoot + "/..."},
-			Dirs: sort.StringSlice{
+			name: "pkg root all",
+			args: []string{pkgRoot + "/..."},
+			dirs: sort.StringSlice{
 				pkg.Dir,
 				filepath.Join(splitList[:len(splitList)-1]...),
 				filepath.Join(splitList[:len(splitList)-2]...),
 			},
 		},
 	}
-	for _, f := range fixture {
-		dirs, err := testDirs(f.Args)
-		if err != nil {
-			t.Errorf("expected err=nil; got %v", err)
-		}
-		sortedDirs := make(sort.StringSlice, 0, len(dirs))
-		for dir := range dirs {
-			sortedDirs = append(sortedDirs, filepath.Clean(dir))
-		}
-		sortedDirs.Sort()
-		f.Dirs.Sort()
-		if !reflect.DeepEqual(sortedDirs, f.Dirs) {
-			t.Errorf("expected %v; got %v", f.Dirs, sortedDirs)
-		}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			dirs, err := testDirs(tt.args)
+			if err != nil {
+				t.Errorf("expected err=nil; got %v", err)
+			}
+			sortedDirs := make(sort.StringSlice, 0, len(dirs))
+			for dir := range dirs {
+				sortedDirs = append(sortedDirs, filepath.Clean(dir))
+			}
+			sortedDirs.Sort()
+			tt.dirs.Sort()
+			if !reflect.DeepEqual(sortedDirs, tt.dirs) {
+				t.Errorf("expected %v; got %v", tt.dirs, sortedDirs)
+			}
+		})
 	}
 }
