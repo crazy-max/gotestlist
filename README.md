@@ -94,7 +94,7 @@ on:
   push:
 
 env:
-  GO_VERSION: 1.20
+  GO_VERSION: 1.23
 
 jobs:
   test-prepare:
@@ -104,10 +104,10 @@ jobs:
     steps:
       -
         name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       -
         name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
       -
@@ -131,10 +131,10 @@ jobs:
     steps:
       -
         name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       -
         name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
       -
@@ -143,9 +143,9 @@ jobs:
           go test -run=(${{ matrix.test }})/ -coverprofile=coverage.txt -covermode=atomic ./...
       -
         name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
-          file: ./coverage.txt
+          files: ./coverage.txt
 ```
 
 This is useful if you have a lot of tests, and you want to distribute them to
