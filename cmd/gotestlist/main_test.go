@@ -24,14 +24,6 @@ func init() {
 }
 
 func TestDirs(t *testing.T) {
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatal("getwd failed: ", err)
-	}
-	if err := os.Chdir(pkg.Dir); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Chdir(wd)
 	splitList := strings.SplitAfter(pkg.Dir, string(filepath.Separator))
 	cases := []struct {
 		name string
@@ -97,10 +89,15 @@ func TestDirs(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
+			if err := os.Chdir(pkg.Dir); err != nil {
+				t.Fatalf("failed to change directory: %v", err)
+			}
+
 			dirs, err := testDirs(tt.args)
 			if err != nil {
 				t.Errorf("expected err=nil; got %v", err)
 			}
+
 			sortedDirs := make(sort.StringSlice, 0, len(dirs))
 			for dir := range dirs {
 				sortedDirs = append(sortedDirs, filepath.Clean(dir))
