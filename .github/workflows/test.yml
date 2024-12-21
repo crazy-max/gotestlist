@@ -12,9 +12,15 @@ on:
       - 'v*'
   pull_request:
 
+env:
+  DESTDIR: ./bin
+  DOCKER_BUILD_SUMMARY: false
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      GO111MODULE: on
     strategy:
       fail-fast: false
       matrix:
@@ -26,18 +32,18 @@ jobs:
       -
         name: Checkout
         uses: actions/checkout@v4
-      -
-        name: Set up Go
-        uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go }}
+          fetch-depth: 0
       -
         name: Test
-        run: |
-          go test -coverprofile=coverage.txt -covermode=atomic ./...
+        uses: docker/bake-action@v5
+        with:
+          targets: test
+        env:
+          GO_VERSION: ${{ matrix.go }}
       -
         name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
-          file: ./coverage.txt
+          directory: ${{ env.DESTDIR }}/coverage
           token: ${{ secrets.CODECOV_TOKEN }}
