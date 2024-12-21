@@ -19,8 +19,6 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      GO111MODULE: on
     strategy:
       fail-fast: false
       matrix:
@@ -47,3 +45,43 @@ jobs:
         with:
           directory: ${{ env.DESTDIR }}/coverage
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          -
+            repo: "moby/moby"
+            ref: "v27.4.1"
+            wd: "./integration-cli"
+          -
+            repo: "crazy-max/diun"
+            ref: "v4.29.0"
+            wd: "."
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v4
+      -
+        name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      -
+        name: Install gotestlist
+        run: |
+          go install ./cmd/gotestlist
+      -
+        name: Checkout ${{ matrix.repo }} for testing
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repo }}
+          ref: ${{ matrix.ref }}
+          path: project
+      -
+        name: Run gotestlist
+        working-directory: project/${{ matrix.wd }}
+        run: |
+          gotestlist -d 6 ./... | jq '.'
