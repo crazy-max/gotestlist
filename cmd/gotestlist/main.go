@@ -273,12 +273,9 @@ func runDistribute(ts gotestlist.TestSlice, size int, overrides []string) error 
 	for _, mkey := range mkeys {
 		matrix = append(matrix, strings.Join(matrixEntries[mkey].Suites, "|"))
 	}
-	for _, o := range overrides {
-		matrix = append(matrix, o)
-	}
+	matrix = append(matrix, overrides...)
 
 	b, _ := json.Marshal(matrix)
-	fmt.Println(string(b))
-
-	return nil
+	_, err := os.Stdout.Write(b)
+	return err
 }
