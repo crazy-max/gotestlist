@@ -28,8 +28,9 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       -
         name: Lint
-        uses: docker/bake-action@4a9a8d494466d37134e2bfca2d3a8de8fb2681ad # v5.13.0
+        uses: docker/bake-action@82490499d2e5613fcead7e128237ef0b0ea210f7 # v7.0.0
         with:
+          source: .
           targets: lint
 
   test:
@@ -49,8 +50,9 @@ jobs:
           fetch-depth: 0
       -
         name: Test
-        uses: docker/bake-action@4a9a8d494466d37134e2bfca2d3a8de8fb2681ad # v5.13.0
+        uses: docker/bake-action@82490499d2e5613fcead7e128237ef0b0ea210f7 # v7.0.0
         with:
+          source: .
           targets: test
         env:
           GO_VERSION: ${{ matrix.go }}
