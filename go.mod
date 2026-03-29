@@ -1,6 +1,6 @@
 module github.com/crazy-max/gotestlist
 
-go 1.18
+go 1.22.0
 
 require (
 	github.com/alecthomas/kong v1.14.0
