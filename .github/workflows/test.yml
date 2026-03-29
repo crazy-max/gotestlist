@@ -30,6 +30,7 @@ jobs:
         name: Lint
         uses: docker/bake-action@82490499d2e5613fcead7e128237ef0b0ea210f7 # v7.0.0
         with:
+          source: .
           targets: lint
 
   test:
@@ -51,6 +52,7 @@ jobs:
         name: Test
         uses: docker/bake-action@82490499d2e5613fcead7e128237ef0b0ea210f7 # v7.0.0
         with:
+          source: .
           targets: test
         env:
           GO_VERSION: ${{ matrix.go }}
