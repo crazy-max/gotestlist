@@ -6,25 +6,30 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
-	"strings"
 	"testing"
 )
 
 const pkgImport = "github.com/crazy-max/gotestlist/cmd/gotestlist"
 const pkgRoot = "github.com/crazy-max/gotestlist"
 
-var pkg *build.Package
-
-func init() {
-	var err error
-	pkg, err = build.Import(pkgImport, "", build.FindOnly)
-	if err != nil {
-		panic(err)
-	}
-}
-
 func TestDirs(t *testing.T) {
-	splitList := strings.SplitAfter(pkg.Dir, string(filepath.Separator))
+	gopath, rootDir, pkgDir := createDirFixture(t)
+	t.Setenv("GO111MODULE", "off")
+	t.Setenv("GOPATH", gopath)
+	prevGOPATH := build.Default.GOPATH
+	build.Default.GOPATH = gopath
+	t.Cleanup(func() {
+		build.Default.GOPATH = prevGOPATH
+	})
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(wd)
+	})
+
 	cases := []struct {
 		name string
 		args []string
@@ -33,69 +38,69 @@ func TestDirs(t *testing.T) {
 		{
 			name: "working dir",
 			args: []string{"."},
-			dirs: sort.StringSlice{pkg.Dir},
+			dirs: sort.StringSlice{pkgDir},
 		},
 		{
 			name: "all dirs",
 			args: []string{"./..."},
-			dirs: sort.StringSlice{pkg.Dir},
+			dirs: sort.StringSlice{pkgDir},
 		},
 		{
 			name: "relative dir",
 			args: []string{"../gotestlist/"},
-			dirs: sort.StringSlice{pkg.Dir},
+			dirs: sort.StringSlice{pkgDir},
 		},
 		{
 			name: "relative all dirs",
 			args: []string{"../../..."},
 			dirs: sort.StringSlice{
-				pkg.Dir,
-				filepath.Join(splitList[:len(splitList)-1]...),
-				filepath.Join(splitList[:len(splitList)-2]...),
+				rootDir,
+				filepath.Join(rootDir, "cmd"),
+				pkgDir,
 			},
 		},
 		{
 			name: "working dir and relative dir",
 			args: []string{".", "../../"},
 			dirs: sort.StringSlice{
-				pkg.Dir,
-				filepath.Join(splitList[:len(splitList)-2]...),
+				pkgDir,
+				rootDir,
 			},
 		},
 		{
 			name: "pkg import",
 			args: []string{pkgImport},
 			dirs: sort.StringSlice{
-				pkg.Dir,
+				pkgDir,
 			},
 		},
 		{
 			name: "pkg root",
 			args: []string{pkgRoot},
 			dirs: sort.StringSlice{
-				filepath.Join(splitList[:len(splitList)-2]...),
+				rootDir,
 			},
 		},
 		{
 			name: "pkg root all",
 			args: []string{pkgRoot + "/..."},
 			dirs: sort.StringSlice{
-				pkg.Dir,
-				filepath.Join(splitList[:len(splitList)-1]...),
-				filepath.Join(splitList[:len(splitList)-2]...),
+				rootDir,
+				filepath.Join(rootDir, "cmd"),
+				pkgDir,
 			},
 		},
 	}
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := os.Chdir(pkg.Dir); err != nil {
+			if err := os.Chdir(pkgDir); err != nil {
 				t.Fatalf("failed to change directory: %v", err)
 			}
 
 			dirs, err := testDirs(tt.args)
 			if err != nil {
-				t.Errorf("expected err=nil; got %v", err)
+				t.Fatalf("expected err=nil; got %v", err)
 			}
 
 			sortedDirs := make(sort.StringSlice, 0, len(dirs))
@@ -103,10 +108,23 @@ func TestDirs(t *testing.T) {
 				sortedDirs = append(sortedDirs, filepath.Clean(dir))
 			}
 			sortedDirs.Sort()
-			tt.dirs.Sort()
-			if !reflect.DeepEqual(sortedDirs, tt.dirs) {
-				t.Errorf("expected %v; got %v", tt.dirs, sortedDirs)
+
+			expected := append(sort.StringSlice(nil), tt.dirs...)
+			expected.Sort()
+			if !reflect.DeepEqual(sortedDirs, expected) {
+				t.Fatalf("expected %v; got %v", expected, sortedDirs)
 			}
 		})
 	}
+}
+
+func createDirFixture(t *testing.T) (string, string, string) {
+	t.Helper()
+	gopath := t.TempDir()
+	rootDir := filepath.Join(gopath, "src", filepath.FromSlash(pkgRoot))
+	pkgDir := filepath.Join(rootDir, "cmd", "gotestlist")
+	if err := os.MkdirAll(pkgDir, 0o755); err != nil {
+		t.Fatalf("failed to create fixture dir %q: %v", pkgDir, err)
+	}
+	return gopath, rootDir, pkgDir
 }

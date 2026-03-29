@@ -1,7 +1,6 @@
 package gotestlist
 
 import (
-	"go/build"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -9,8 +8,6 @@ import (
 	"testing"
 	"text/template"
 )
-
-const pkg = "github.com/crazy-max/gotestlist"
 
 const testFileStr = "{{if .BuildTag}}{{.BuildTag}}\n\n{{else}}{{end}}package {{.Pkg}}\n\n" +
 	"import \"testing\"\n\n" +
@@ -32,6 +29,65 @@ var goos = []string{
 	"plan9",
 	"solaris",
 	"windows",
+}
+
+func TestTests(t *testing.T) {
+	dir := t.TempDir()
+	if err := createTestFiles(dir); err != nil {
+		t.Fatal(err)
+	}
+	expected := TestSlice{
+		{
+			Name:      "BenchmarkRandInt",
+			Benchmark: true,
+			File:      filepath.Join(dir, "func_test.go"),
+			Pkg:       "gotestlist",
+		},
+		{
+			Name: "FuzzHex",
+			Fuzz: true,
+			File: filepath.Join(dir, "func_test.go"),
+			Pkg:  "gotestlist",
+		},
+		{
+			Name: "Test",
+			File: filepath.Join(dir, "func_test.go"),
+			Pkg:  "gotestlist",
+		},
+		{
+			Name: "Test1",
+			File: filepath.Join(dir, "func_test.go"),
+			Pkg:  "gotestlist",
+		},
+		{
+			Name:  "TestBuild",
+			Suite: "MySuite",
+			File:  filepath.Join(dir, "func_test.go"),
+			Pkg:   "gotestlist",
+		},
+		{
+			Name: "TestTests",
+			File: filepath.Join(dir, "gotestlist_test.go"),
+			Pkg:  "gotestlist",
+		},
+		{
+			Name: "TestZPackage",
+			File: filepath.Join(dir, "package_test.go"),
+			Pkg:  "gotestlist_test",
+		},
+	}
+	ts, err := Tests(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected.Sort()
+	ts.Sort()
+	if len(ts) != len(expected) {
+		t.Errorf("expected len(ts) = %d; got %d", len(expected), len(ts))
+	}
+	if !reflect.DeepEqual(expected, ts) {
+		t.Errorf("expected %v; got %v", expected, ts)
+	}
 }
 
 type testFile struct {
@@ -58,20 +114,24 @@ func chooseOtherOS() string {
 	return ""
 }
 
-func removeTestFiles(files []string) error {
-	for _, f := range files {
-		if err := os.Remove(f); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func createTestFiles(t *testing.T, dir string) (files []string, err error) {
+func createTestFiles(dir string) error {
 	filesData := []struct {
 		File     string
 		TestFile testFile
 	}{
+		{
+			File: filepath.Join(dir, "gotestlist_test.go"),
+			TestFile: testFile{
+				Pkg: "gotestlist",
+				TestFuncs: []testFunc{
+					{
+						TestName: "TestTests",
+						Params:   "t *testing.T",
+						Body:     "{}",
+					},
+				},
+			},
+		},
 		{
 			File: filepath.Join(dir, "package_test.go"),
 			TestFile: testFile{
@@ -192,81 +252,16 @@ func createTestFiles(t *testing.T, dir string) (files []string, err error) {
 		},
 	}
 	for _, data := range filesData {
-		files = append(files, data.File)
 		f, err := os.Create(data.File)
 		if err != nil {
-			return files, err
+			return err
 		}
 		if err = testFileTemplate.Execute(f, data.TestFile); err != nil {
-			return files, err
+			return err
 		}
 		if err = f.Close(); err != nil {
-			return files, err
+			return err
 		}
 	}
-	return files, err
-}
-
-func TestTests(t *testing.T) {
-	p, err := build.Import(pkg, "", build.FindOnly)
-	if err != nil {
-		t.Fatal(err)
-	}
-	files, err := createTestFiles(t, p.Dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer removeTestFiles(files)
-	expected := TestSlice{
-		{
-			Name:      "BenchmarkRandInt",
-			Benchmark: true,
-			File:      filepath.Join(p.Dir, "func_test.go"),
-			Pkg:       "gotestlist",
-		},
-		{
-			Name: "FuzzHex",
-			Fuzz: true,
-			File: filepath.Join(p.Dir, "func_test.go"),
-			Pkg:  "gotestlist",
-		},
-		{
-			Name: "Test",
-			File: filepath.Join(p.Dir, "func_test.go"),
-			Pkg:  "gotestlist",
-		},
-		{
-			Name: "Test1",
-			File: filepath.Join(p.Dir, "func_test.go"),
-			Pkg:  "gotestlist",
-		},
-		{
-			Name:  "TestBuild",
-			Suite: "MySuite",
-			File:  filepath.Join(p.Dir, "func_test.go"),
-			Pkg:   "gotestlist",
-		},
-		{
-			Name: "TestTests",
-			File: filepath.Join(p.Dir, "gotestlist_test.go"),
-			Pkg:  "gotestlist",
-		},
-		{
-			Name: "TestZPackage",
-			File: filepath.Join(p.Dir, "package_test.go"),
-			Pkg:  "gotestlist_test",
-		},
-	}
-	ts, err := Tests(p.Dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expected.Sort()
-	ts.Sort()
-	if len(ts) != len(expected) {
-		t.Errorf("expected len(ts) = %d; got %d", len(expected), len(ts))
-	}
-	if !reflect.DeepEqual(expected, ts) {
-		t.Errorf("expected %v; got %v", expected, ts)
-	}
+	return nil
 }
