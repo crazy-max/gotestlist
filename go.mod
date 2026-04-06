@@ -3,6 +3,6 @@ module github.com/crazy-max/gotestlist
 go 1.22.0
 
 require (
-	github.com/alecthomas/kong v1.14.0
+	github.com/alecthomas/kong v1.15.0
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 )
